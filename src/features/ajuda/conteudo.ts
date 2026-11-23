@@ -400,6 +400,18 @@ export const AJUDA_DAS_AREAS: Record<AreaPortal, Ajuda> = {
         ],
       },
       {
+        titulo: "Limpar competencia",
+        telas: ["/apontamentos"],
+        paragrafos: [
+          '"Limpar competencia" apaga todos os apontamentos da competencia em vigor, de todas as empresas, mesmo com a lista filtrada. Antes de apagar, o portal pede confirmacao e mostra quantos serao removidos.',
+          'Serve para recomecar o fechamento — um lote gerado com a regra errada, uma planilha de horas importada na competencia errada. Regras, grade e ponto nao mudam, e "Gerar pelas regras" refaz o lote depois.',
+        ],
+        notas: [
+          "Se alguem apontar ou remover um apontamento entre abrir a confirmacao e confirmar, nada e apagado: a tela se atualiza com o numero novo e pede a confirmacao de novo.",
+          'Para apagar o apontamento de uma pessoa so, use "Remover apontamento" na ficha dela.',
+        ],
+      },
+      {
         titulo: "Importar horas extras",
         telas: ["/apontamentos/importar-horas"],
         passos: [
