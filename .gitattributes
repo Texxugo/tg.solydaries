@@ -1,0 +1,17 @@
+# Normaliza as quebras de linha: LF no repositorio e no working tree,
+# independente do sistema operacional de quem clonar.
+* text=auto eol=lf
+
+# Arquivos binarios: nunca converter.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Reduz ruido em diffs de lockfile.
+package-lock.json -diff linguist-generated

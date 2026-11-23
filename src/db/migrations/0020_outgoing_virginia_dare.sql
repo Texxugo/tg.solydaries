@@ -1,0 +1,1 @@
+ALTER TABLE "funcoes_posto" ADD COLUMN "inicio_ciclo" date;

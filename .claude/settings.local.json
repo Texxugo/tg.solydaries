@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --no-install shadcn add checkbox --yes --overwrite)",
+      "Bash(npx --no-install shadcn add alert --yes --overwrite)",
+      "Bash(node -e \"const l=require\\('lucide-react'\\); ['RotateCcwKey','KeyRound','ShieldCheck','UserPlus','Users','Pencil','Copy','Check','Megaphone','CircleSlash','Inbox','ArrowLeft'].forEach\\(n=>console.log\\(n, !!l[n]\\)\\)\")",
+      "Bash(npm run *)"
+    ]
+  }
+}

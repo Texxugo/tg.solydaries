@@ -1,0 +1,2 @@
+ALTER TABLE "preenchimento_linhas" ADD COLUMN "evento_trabalho_id" uuid;--> statement-breakpoint
+ALTER TABLE "preenchimento_linhas" ADD CONSTRAINT "preenchimento_linhas_evento_trabalho_id_eventos_id_fk" FOREIGN KEY ("evento_trabalho_id") REFERENCES "public"."eventos"("id") ON DELETE restrict ON UPDATE no action;
