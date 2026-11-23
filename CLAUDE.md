@@ -1648,7 +1648,7 @@ faltas e DSR —, lancado por quem fecha a folha com o espelho de ponto ao lado.
 | `apontamentos/rubricas.ts`                                     | catalogo das rubricas, unidade, leitura e escrita (modulo puro) |
 | `apontamentos/espelho.ts`                                      | a apuracao do ponto resumida nas rubricas (modulo puro)         |
 | `apontamentos/queries.ts`                                      | `listarApontamentos`, `obterApontamento`                        |
-| `apontamentos/actions.ts`                                      | `salvarApontamento`, `limparApontamento`                        |
+| `apontamentos/actions.ts`                                      | `salvar/limparApontamento`, `limparApontamentosDaCompetencia`   |
 | `apontamentos/exportacao/planilha.ts`                          | as colunas da planilha, na ordem da folha (modulo puro)         |
 | `apontamentos/exportacao/relatorio.ts`                         | totais e agrupamento do relatorio (modulo puro)                 |
 | `apontamentos/exportacao/excel.ts`                             | gera o `.xlsx` com `exceljs`, `server-only`                     |
@@ -1712,6 +1712,14 @@ update` — duas pessoas salvando juntas terminam com a ultima gravacao, e nao
 - **"Remover apontamento" e outro gesto**, e nao "esvaziar e salvar", pela mesma
   razao do "Apagar este dia". Apontamento e entrada, como o extra: lancado na
   pessoa errada, a linha diria a folha que ha o que pagar.
+- **"Limpar competencia" apaga todos os apontamentos do periodo, com
+  confirmacao num modal.** E o recomeco do fechamento (lote gerado com regra
+  errada, horas importadas no periodo errado). Ignora busca e empresa da lista:
+  o modal diz o numero da competencia inteira, e e esse numero que volta no
+  formulario (`quantidade`). A action apaga numa transacao e desfaz se o
+  `returning` trouxer outro numero — confirmar "apagar 40" nao pode apagar 41.
+  O modal so fecha quando a resposta volta: `<form>` desmontado no meio do
+  envio nao chega a Server Action.
 
 Exportacao:
 
@@ -2393,3 +2401,4 @@ Regras:
 | 2026-11-12 | Modulo de efetivos com locais globais e tipos de excecao proprios           | lancamento diario do efetivo por posto; local nao e funcao do posto, e excecao nao e sigla da grade — o tipo carrega um comportamento fechado    |
 | 2026-11-12 | Efetivo por data, e nao por competencia                                     | o D-2 e a semana atravessam a virada do periodo; mesmo arranjo dos afastamentos                                                                  |
 | 2026-11-12 | Conflito de horario pede confirmacao, e nao bloqueia                        | a dobra legitima existe; nada e gravado sem a decisao, e os confirmados ficam no painel do dia                                                   |
+| 2026-11-23 | Limpar os apontamentos da competencia, com confirmacao e contagem conferida | recomecar o fechamento sem SQL; a action recusa se o numero mudou, porque a confirmacao vale para o que a pessoa leu                             |

@@ -13,6 +13,7 @@ import { diasDoPeriodo } from "@/features/preenchimento/grade";
 import { apontamentoVazio, RUBRICAS } from "./rubricas";
 import {
   limparApontamentoSchema,
+  limparCompetenciaSchema,
   salvarApontamentoSchema,
   type SalvarApontamentoInput,
 } from "./schema";
@@ -251,4 +252,81 @@ export async function limparApontamento(
   refresh();
 
   return { status: "success", mensagem: "Apontamento removido." };
+}
+
+/** Sinaliza, dentro da transacao, que a contagem mudou — so excecao desfaz. */
+class ContagemMudou extends Error {}
+
+/**
+ * Apaga **todos** os apontamentos da competencia em vigor — o recomeco do
+ * fechamento, quando o lote foi gerado com regra errada ou a planilha de horas
+ * caiu na competencia errada.
+ *
+ * A confirmacao da tela diz quantos vao ser apagados, e esse numero volta no
+ * formulario (`quantidade`): se alguem apontou ou removeu nesse meio tempo, o
+ * `delete` apagaria um numero diferente do que a pessoa confirmou. A conferencia
+ * e no `returning`, dentro da transacao, e a diferenca desfaz tudo — contar
+ * antes e apagar depois deixaria a janela aberta entre as duas consultas.
+ *
+ * Nao respeita busca nem empresa da lista: e a competencia inteira, como o
+ * nome do botao diz. Regras, grade e ponto ficam como estao — so a tabela
+ * `apontamentos` e tocada, e "Gerar pelas regras" refaz o lote depois.
+ */
+export async function limparApontamentosDaCompetencia(
+  _estadoAnterior: LimparApontamentoState,
+  formData: FormData,
+): Promise<LimparApontamentoState> {
+  await exigirAcesso(AREA);
+
+  const escrita = await competenciaDeEscrita(formData.get("competenciaId"));
+
+  if (!escrita.ok) {
+    return { status: "error", mensagem: escrita.mensagem };
+  }
+
+  const resultado = limparCompetenciaSchema.safeParse({
+    quantidade: formData.get("quantidade"),
+  });
+
+  if (!resultado.success) {
+    return { status: "error", mensagem: "Confirmacao invalida. Recarregue a tela." };
+  }
+
+  const { quantidade } = resultado.data;
+
+  try {
+    const apagados = await db.transaction(async (tx) => {
+      const linhas = await tx
+        .delete(apontamentos)
+        .where(eq(apontamentos.competenciaId, escrita.competencia.id))
+        .returning({ id: apontamentos.id });
+
+      if (linhas.length !== quantidade) {
+        throw new ContagemMudou();
+      }
+
+      return linhas.length;
+    });
+
+    refresh();
+
+    return {
+      status: "success",
+      mensagem: `${apagados} ${apagados === 1 ? "apontamento removido" : "apontamentos removidos"} da competencia.`,
+    };
+  } catch (erro) {
+    if (erro instanceof ContagemMudou) {
+      // A tela mostrava outro numero: redesenha com o atual e pede de novo.
+      refresh();
+
+      return {
+        status: "error",
+        mensagem:
+          "Os apontamentos da competencia mudaram desde que a tela foi aberta. Nada foi apagado; confira o numero e confirme de novo.",
+      };
+    }
+
+    console.error("Falha ao limpar apontamentos da competencia", erro);
+    return { status: "error", mensagem: FALHA_GENERICA };
+  }
 }

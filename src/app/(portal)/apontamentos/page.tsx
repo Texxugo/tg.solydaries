@@ -9,6 +9,7 @@ import { hrefDaExportacao } from "@/features/apontamentos/exportacao/tipos";
 import { GerarApontamentos } from "@/features/apontamentos/regras/components/gerar-apontamentos";
 import { sugestoesDaCompetencia } from "@/features/apontamentos/regras/queries";
 import { FiltrosApontamentos } from "@/features/apontamentos/components/filtros-apontamentos";
+import { LimparCompetencia } from "@/features/apontamentos/components/limpar-competencia";
 import { ListaApontamentos } from "@/features/apontamentos/components/lista-apontamentos";
 import { PaginacaoApontamentos } from "@/features/apontamentos/components/paginacao-apontamentos";
 import { listarApontamentos } from "@/features/apontamentos/queries";
@@ -73,6 +74,14 @@ export default async function ApontamentosPage({ searchParams }: PageProps<"/apo
             </Button>
 
             <GerarApontamentos competenciaId={vigor.competencia.id} pendentes={pagina.pendentes} />
+
+            {/* `apontados` ignora o filtro da lista: e a competencia inteira que vai embora. */}
+            <LimparCompetencia
+              competenciaId={vigor.competencia.id}
+              competencia={nomeDaCompetencia(vigor.competencia.dataFim)}
+              apontados={pagina.apontados}
+              emConsulta={vigor.temporaria}
+            />
 
             <Button asChild variant="outline">
               <Link href="/apontamentos/importar-horas">

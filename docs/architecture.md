@@ -1311,6 +1311,16 @@ Gravacao:
 
 `limparApontamento()` e o gesto de apagar, separado de "esvaziar tudo e salvar".
 
+`limparApontamentosDaCompetencia()` apaga a competencia inteira (botao "Limpar
+competencia" da lista, com modal de confirmacao):
+
+1. `exigirAcesso("apontamentos")` e `competenciaDeEscrita(competenciaId)`.
+2. `quantidade` (o numero que a confirmacao mostrou) passa pelo Zod.
+3. Numa transacao, `delete ... where competencia_id = ? returning id`; se o
+   numero de linhas difere de `quantidade`, uma excecao desfaz o `delete`, a
+   action chama `refresh()` e pede nova confirmacao.
+4. Sucesso: `refresh()`. Busca e empresa da lista nao recortam nada.
+
 ### Sugestao das regras (`sugestoesDaCompetencia`)
 
 As regras de `regras_apontamento` transformam a grade da competencia no que

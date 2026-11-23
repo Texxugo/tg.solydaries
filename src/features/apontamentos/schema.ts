@@ -101,6 +101,14 @@ export const salvarApontamentoSchema = z.object({
 export const limparApontamentoSchema = z.object({ funcionarioId: idFuncionarioSchema });
 
 /**
+ * Quantos apontamentos a confirmacao mostrou. A action so apaga se for
+ * exatamente esse numero — confirmar "apagar 40" nao pode apagar 41.
+ */
+export const limparCompetenciaSchema = z.object({
+  quantidade: z.coerce.number().int().min(1).max(100_000),
+});
+
+/**
  * Os filtros da lista, lidos de uma vez dos `searchParams`. Cada campo tem o
  * proprio `catch`: filtro torto e "sem esse filtro", e um recusado nao derruba
  * os outros — mesma escolha de `filtrosExtrasSchema`.
