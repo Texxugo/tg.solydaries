@@ -415,7 +415,7 @@ export const AJUDA_DAS_AREAS: Record<AreaPortal, Ajuda> = {
         titulo: "Importar horas extras",
         telas: ["/apontamentos/importar-horas"],
         passos: [
-          'Em Apontamentos, use "Importar horas extras" e escolha a planilha .xlsx com as colunas Nome, Horas e Verba.',
+          'Em Apontamentos, use "Importar horas extras" e escolha a planilha .xlsx com as colunas Nome, Horas e Verba — o resumo com uma linha por pessoa ou o Relatorio de Eventos Individuais, com uma linha por dia e as colunas Emp. e Matricula.',
           '"Conferir arquivo" mostra, sem gravar nada, o que muda no apontamento de cada pessoa: a hora gravada sai riscada e a do arquivo entra sublinhada.',
           'Para os nomes sem cadastro casado, escolha o cadastro certo na lista de parecidos, ou deixe em "Nao importar".',
           'Use "Importar" para gravar na competencia em vigor.',
@@ -426,6 +426,7 @@ export const AJUDA_DAS_AREAS: Record<AreaPortal, Ajuda> = {
         ],
         notas: [
           "A pessoa e achada pelo nome, sem diferenca de acento, maiuscula ou espaco duplo. Nome parecido nunca casa sozinho: lancar horas extras na pessoa errada e pagar a quem nao fez.",
+          "Quando o arquivo traz a matricula, as linhas com o mesmo nome, matricula e empresa sao somadas por verba, e a matricula precisa bater com a do cadastro. Sem matricula, o mesmo nome repetido na mesma verba e recusado: pode ser outra pessoa com o mesmo nome.",
           "As horas do arquivo substituem as gravadas, e nao somam: importar o mesmo arquivo duas vezes nao dobra nada. Uma verba que nao veio para a pessoa fica como estava, e as outras rubricas do apontamento nao mudam. Outras verbas do relatorio sao ignoradas.",
           'Quem ainda nao tinha apontamento ganha um so com as horas extras, e o "Gerar pelas regras" passa a pular essa pessoa. Se for usar as regras, gere antes de importar — ou use "Usar a sugestao" na ficha depois.',
         ],

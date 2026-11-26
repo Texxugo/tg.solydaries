@@ -20,10 +20,14 @@ export const PREFIXO_ASSOCIACAO = "associar:";
 
 /** Uma pessoa que o apontamento vai receber, como a previa a desenha. */
 export type ItemDaImportacaoDeHoras = {
+  /** A identidade do arquivo; com `associado`, e o nome do campo que leva a escolha adiante. */
+  chave: string;
   funcionarioId: string;
   funcionario: string;
   detalhe: string;
   nomeNoArquivo: string;
+  matriculaNoArquivo: string | null;
+  /** As linhas do arquivo somadas nesta pessoa (o relatorio de eventos traz uma por dia). */
   linhas: number[];
   /** Casou pelo nome exato (`false`) ou por associacao escolhida na previa. */
   associado: boolean;

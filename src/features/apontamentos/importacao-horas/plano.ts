@@ -10,9 +10,11 @@ import { chaveDoNome, type LinhaDeHoras } from "./leitura";
  * `funcionarios/importacao.ts`: uma previa calculada por outro caminho nao
  * prometeria nada.
  *
- * **A pessoa e achada pelo nome**, porque e so o que o relatorio traz: nem CPF
- * nem matricula. O casamento automatico e so o exato (`chaveDoNome()` dos dois
- * lados) e com um cadastro so. Nome parecido nunca casa sozinho: "JESSICA
+ * **A pessoa e achada pelo nome**, porque e o que todo relatorio traz. O
+ * casamento automatico e so o exato (`chaveDoNome()` dos dois lados) e com um
+ * cadastro so. Quando o arquivo traz a **matricula**, ela tambem precisa bater:
+ * desempata os homonimos do cadastro e barra o nome igual de outra pessoa (a
+ * matricula se repete entre empresas, entao ela sozinha nao casa ninguem). Nome parecido nunca casa sozinho: "JESSICA
  * APARECIDA DOS SANTOS" e "JESSICA APARECIDA DOS SANTOS LIMA" podem ser a mesma
  * pessoa ou duas, e lancar horas extras na errada e pagar a quem nao fez. Os
  * parecidos viram **candidatos** para quem importa escolher.
@@ -33,8 +35,11 @@ export type HorasGravadas = { he50Minutos: number; he100Minutos: number };
 type HorasDoArquivo = { he50: number | null; he100: number | null };
 
 export type Gravacao = HorasDoArquivo & {
+  /** A identidade do arquivo (`LinhaDeHoras.identidade`): a chave da associacao, quando houver. */
+  chave: string;
   funcionario: FuncionarioParaHoras;
   nomeNoArquivo: string;
+  matriculaNoArquivo: string | null;
   linhas: number[];
   /** Casou por associacao escolhida na previa, e nao pelo nome exato. */
   associado: boolean;
@@ -45,11 +50,17 @@ export type Gravacao = HorasDoArquivo & {
 export type CandidatoDoNome = { id: string; nome: string; detalhe: string };
 
 export type NomeSemCadastro = HorasDoArquivo & {
+  /** A identidade do arquivo (`LinhaDeHoras.identidade`): e a chave da associacao no formulario. */
   chave: string;
   nomeNoArquivo: string;
+  matriculaNoArquivo: string | null;
   linhas: number[];
-  /** `homonimos`: o nome casa com mais de um cadastro. */
-  motivo: "sem_cadastro" | "homonimos";
+  /**
+   * `homonimos`: o nome (e a matricula, se veio) casa com mais de um cadastro.
+   * `matricula_diferente`: o nome casa, mas a matricula do arquivo nao e a do
+   * cadastro — pode ser outra pessoa com o mesmo nome.
+   */
+  motivo: "sem_cadastro" | "homonimos" | "matricula_diferente";
   candidatos: CandidatoDoNome[];
 };
 
@@ -149,14 +160,24 @@ export function detalheDoFuncionario(funcionario: FuncionarioParaHoras) {
     .join(" · ");
 }
 
+/** Os parecidos pelo nome; os de mesma matricula sobem para o topo da lista. */
 function candidatosDoNome(
   chave: string,
+  matricula: string | null,
   cadastro: readonly (FuncionarioParaHoras & { chave: string })[],
 ): CandidatoDoNome[] {
+  const mesma = (funcionario: FuncionarioParaHoras) =>
+    matricula !== null && funcionario.matricula === matricula ? 1 : 0;
+
   return cadastro
     .map((funcionario) => ({ funcionario, nota: semelhanca(chave, funcionario.chave) }))
     .filter(({ nota }) => nota >= 0.5)
-    .sort((a, b) => b.nota - a.nota || a.funcionario.nome.localeCompare(b.funcionario.nome))
+    .sort(
+      (a, b) =>
+        mesma(b.funcionario) - mesma(a.funcionario) ||
+        b.nota - a.nota ||
+        a.funcionario.nome.localeCompare(b.funcionario.nome),
+    )
     .slice(0, CANDIDATOS_POR_NOME)
     .map(({ funcionario }) => ({
       id: funcionario.id,
@@ -195,68 +216,75 @@ export function planejarHoras({
   const porId = new Map(cadastro.map((funcionario) => [funcionario.id, funcionario]));
   const porNome = Map.groupBy(cadastro, (funcionario) => funcionario.chave);
 
-  // Uma entrada por nome do arquivo, com as duas verbas juntas.
-  const nomes = new Map<string, HorasDoArquivo & { nome: string; linhas: number[] }>();
+  // Uma entrada por pessoa do arquivo (`identidade`), com as duas verbas juntas.
+  const pessoas = new Map<
+    string,
+    HorasDoArquivo & { nome: string; chave: string; matricula: string | null; linhas: number[] }
+  >();
 
   for (const linha of linhas) {
-    const atual = nomes.get(linha.chave) ?? {
+    const atual = pessoas.get(linha.identidade) ?? {
       nome: linha.nome,
+      chave: linha.chave,
+      matricula: linha.matricula,
       linhas: [],
       he50: null,
       he100: null,
     };
 
-    atual.linhas.push(linha.linha);
+    atual.linhas.push(...linha.linhas);
 
     if (linha.verba === "150") atual.he50 = linha.minutos;
     else atual.he100 = linha.minutos;
 
-    nomes.set(linha.chave, atual);
+    pessoas.set(linha.identidade, atual);
   }
 
   const resolvidas: Omit<Gravacao, "gravado">[] = [];
   const semCadastro: NomeSemCadastro[] = [];
 
-  for (const [chave, doArquivo] of nomes) {
-    const exatos = porNome.get(chave) ?? [];
-    const horas = { he50: doArquivo.he50, he100: doArquivo.he100 };
+  for (const [identidade, doArquivo] of pessoas) {
+    const mesmoNome = porNome.get(doArquivo.chave) ?? [];
+    // Com matricula no arquivo, o nome igual so vale com a matricula igual.
+    const exatos =
+      doArquivo.matricula === null
+        ? mesmoNome
+        : mesmoNome.filter((funcionario) => funcionario.matricula === doArquivo.matricula);
+    const doArquivoNaGravacao = {
+      chave: identidade,
+      he50: doArquivo.he50,
+      he100: doArquivo.he100,
+      nomeNoArquivo: doArquivo.nome,
+      matriculaNoArquivo: doArquivo.matricula,
+      linhas: doArquivo.linhas.toSorted((a, b) => a - b),
+    };
 
     if (exatos.length === 1) {
-      resolvidas.push({
-        ...horas,
-        funcionario: exatos[0],
-        nomeNoArquivo: doArquivo.nome,
-        linhas: doArquivo.linhas,
-        associado: false,
-      });
+      resolvidas.push({ ...doArquivoNaGravacao, funcionario: exatos[0], associado: false });
       continue;
     }
 
-    const escolhido = porId.get(associacoes.get(chave) ?? "");
+    const escolhido = porId.get(associacoes.get(identidade) ?? "");
 
     if (escolhido) {
-      resolvidas.push({
-        ...horas,
-        funcionario: escolhido,
-        nomeNoArquivo: doArquivo.nome,
-        linhas: doArquivo.linhas,
-        associado: true,
-      });
+      resolvidas.push({ ...doArquivoNaGravacao, funcionario: escolhido, associado: true });
       continue;
     }
 
     semCadastro.push({
-      ...horas,
-      chave,
-      nomeNoArquivo: doArquivo.nome,
-      linhas: doArquivo.linhas,
-      motivo: exatos.length > 1 ? "homonimos" : "sem_cadastro",
-      candidatos: candidatosDoNome(chave, cadastro),
+      ...doArquivoNaGravacao,
+      motivo:
+        exatos.length > 1
+          ? "homonimos"
+          : mesmoNome.length > 0
+            ? "matricula_diferente"
+            : "sem_cadastro",
+      candidatos: candidatosDoNome(doArquivo.chave, doArquivo.matricula, cadastro),
     });
   }
 
-  // Dois nomes do arquivo na mesma pessoa so acontece por associacao, e uma
-  // das duas esta errada: nenhuma entra, em vez de uma sobrescrever a outra.
+  // Duas pessoas do arquivo no mesmo cadastro so acontece por associacao, e
+  // uma das duas esta errada: nenhuma entra, em vez de uma sobrescrever a outra.
   const porFuncionario = Map.groupBy(resolvidas, (gravacao) => gravacao.funcionario.id);
   const recusadas: LinhaRecusada[] = [];
   const plano: PlanoDeHoras = { gravar: [], semMudanca: [], semCadastro, recusadas };
@@ -268,7 +296,7 @@ export function planejarHoras({
           recusadas.push({
             linha,
             identificacao: gravacao.nomeNoArquivo,
-            motivo: `Mais de um nome do arquivo ficou associado a ${gravacao.funcionario.nome}.`,
+            motivo: `Mais de uma pessoa do arquivo ficou associada a ${gravacao.funcionario.nome}.`,
           });
         }
       }

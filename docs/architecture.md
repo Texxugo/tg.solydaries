@@ -1352,6 +1352,22 @@ Gravar continua sendo um gesto: o botao da ficha escreve nos **campos** (a
 observacao fica como esta) e `gerarApontamentos()` insere em lote com
 `on conflict do nothing` — quem ja tem apontamento fica como esta.
 
+### Importacao de horas extras (`/apontamentos/importar-horas`, `POST` de `importarHorasExtras`)
+
+1. `exigirAcesso("apontamentos")` e `competenciaDeEscrita(competenciaId)`.
+2. `lerPlanilha()` + `lerRelatorioDeHoras()`: acha o cabecalho (Nome, Horas e
+   Verba obrigatorias; Emp. e Matricula opcionais), le verba 150 e 200 e ignora
+   as demais e o rodape de totais.
+3. `somarPorIdentidade()`: as linhas com o mesmo nome + empresa + matricula
+   somam por verba (o relatorio de eventos traz uma por dia); sem matricula, o
+   nome repetido na mesma verba e recusado. A soma passa pelo teto de 744h.
+4. `planejarHoras()`: casa pelo nome exato e, se o arquivo traz matricula, pela
+   matricula tambem; o que nao casa vira escolha na previa (candidatos de mesma
+   matricula primeiro). A previa e a gravacao chamam a mesma funcao, e a
+   confirmacao reenvia o arquivo.
+5. Gravacao: `insert ... on conflict do update` so das colunas das verbas que
+   vieram, numa transacao; `refresh()`.
+
 ### Exportacao dos apontamentos (`GET /apontamentos/exportar/{word,excel}`)
 
 1. O botao da lista e um `<a href download>` com a busca e a empresa em vigor

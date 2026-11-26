@@ -36,8 +36,10 @@ import {
  * vem so a escolha de quem importa para os nomes que nao casaram sozinhos —
  * que e decisao dela, e e conferida contra o cadastro aqui dentro.
  *
- * **Substitui as duas colunas, e nao soma.** O relatorio e o total do periodo:
- * somar faria a segunda importacao do mesmo arquivo dobrar as horas. Uma verba
+ * **Substitui as duas colunas, e nao soma ao gravado.** O arquivo e o total do
+ * periodo (as linhas diarias da mesma pessoa ja chegam somadas pela leitura):
+ * somar ao que esta gravado faria a segunda importacao do mesmo arquivo dobrar
+ * as horas. Uma verba
  * que nao veio para a pessoa deixa a coluna dela como esta, e nenhuma outra
  * rubrica do apontamento e tocada.
  */
@@ -115,10 +117,12 @@ async function planejarArquivo(
 
 function itemDaPrevia(gravacao: Gravacao): ItemDaImportacaoDeHoras {
   return {
+    chave: gravacao.chave,
     funcionarioId: gravacao.funcionario.id,
     funcionario: gravacao.funcionario.nome,
     detalhe: detalheDoFuncionario(gravacao.funcionario),
     nomeNoArquivo: gravacao.nomeNoArquivo,
+    matriculaNoArquivo: gravacao.matriculaNoArquivo,
     linhas: gravacao.linhas,
     associado: gravacao.associado,
     he50: gravacao.he50,

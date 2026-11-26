@@ -113,8 +113,8 @@ export function ImportarHorasForm({ competenciaId }: { competenciaId: string }) 
             aria-describedby="arquivo-ajuda"
           />
           <p id="arquivo-ajuda" className="text-muted-foreground text-sm">
-            Planilha .xlsx com as colunas Nome, Horas e Verba. Entram a verba 150 (HE 50%) e a 200
-            (HE 100%).
+            Planilha .xlsx com as colunas Nome, Horas e Verba (e Matricula, se houver). Entram a
+            verba 150 (HE 50%) e a 200 (HE 100%).
           </p>
         </div>
 
@@ -331,8 +331,37 @@ function Mudanca({ novo, gravado }: { novo: number | null; gravado: number }) {
   );
 }
 
+/**
+ * As linhas do arquivo em intervalos: o relatorio de eventos traz uma linha por
+ * dia, e a mesma pessoa soma dezenas delas, quase sempre seguidas ("8-10, 15").
+ */
+function intervalos(linhas: readonly number[]) {
+  const partes: string[] = [];
+  let inicio = linhas[0];
+  let anterior = linhas[0];
+
+  for (const linha of [...linhas.slice(1), Number.NaN]) {
+    if (linha === anterior + 1) {
+      anterior = linha;
+      continue;
+    }
+
+    partes.push(inicio === anterior ? String(inicio) : `${inicio}-${anterior}`);
+    inicio = linha;
+    anterior = linha;
+  }
+
+  return partes.join(", ");
+}
+
 function Linhas({ linhas }: { linhas: readonly number[] }) {
-  return <span className="tabular-nums">{linhas.join(", ")}</span>;
+  return <span className="tabular-nums">{intervalos(linhas)}</span>;
+}
+
+function Matricula({ matricula }: { matricula: string | null }) {
+  return matricula === null ? null : (
+    <span className="text-muted-foreground ml-1.5 text-xs">matricula {matricula}</span>
+  );
 }
 
 /**
@@ -368,7 +397,7 @@ function SemCadastro({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">Linha</TableHead>
+              <TableHead className="w-28">Linhas</TableHead>
               <TableHead>Nome no arquivo</TableHead>
               <TableHead className="w-20">HE 50%</TableHead>
               <TableHead className="w-20">HE 100%</TableHead>
@@ -377,18 +406,24 @@ function SemCadastro({
           </TableHeader>
           <TableBody>
             {nomes.map((nome) => {
-              const id = `associar-${nome.chave.replaceAll(" ", "-")}`;
+              const id = `associar-${nome.chave.replaceAll(/[^A-Z0-9]+/g, "-")}`;
 
               return (
                 <TableRow key={nome.chave}>
-                  <TableCell>
+                  <TableCell className="whitespace-normal">
                     <Linhas linhas={nome.linhas} />
                   </TableCell>
                   <TableCell className="whitespace-normal">
                     <label htmlFor={id}>{nome.nomeNoArquivo}</label>
+                    <Matricula matricula={nome.matriculaNoArquivo} />
                     {nome.motivo === "homonimos" ? (
                       <Badge variant="outline" className="ml-2">
                         mais de um cadastro com este nome
+                      </Badge>
+                    ) : null}
+                    {nome.motivo === "matricula_diferente" ? (
+                      <Badge variant="outline" className="ml-2">
+                        o cadastro com este nome tem outra matricula
                       </Badge>
                     ) : null}
                   </TableCell>
@@ -436,12 +471,28 @@ function Gravacoes({ itens }: { itens: readonly ItemDaImportacaoDeHoras[] }) {
 
   return (
     <div className="space-y-2">
+      {/*
+        Quem casou por associacao ja saiu da lista de "sem cadastro", e com ela
+        o campo que levava a escolha. Sem este campo, "Conferir de novo" e
+        "Importar" reenviariam o arquivo sem a associacao, e a pessoa voltaria
+        a ficar de fora na gravacao.
+      */}
+      {itens
+        .filter((item) => item.associado)
+        .map((item) => (
+          <input
+            key={item.chave}
+            type="hidden"
+            name={`${PREFIXO_ASSOCIACAO}${item.chave}`}
+            value={item.funcionarioId}
+          />
+        ))}
       <h3 className="font-medium">Mudam o apontamento: {itens.length}</h3>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">Linha</TableHead>
+              <TableHead className="w-28">Linhas</TableHead>
               <TableHead>Funcionario</TableHead>
               <TableHead className="w-32">HE 50%</TableHead>
               <TableHead className="w-32">HE 100%</TableHead>
@@ -450,7 +501,7 @@ function Gravacoes({ itens }: { itens: readonly ItemDaImportacaoDeHoras[] }) {
           <TableBody>
             {itens.map((item) => (
               <TableRow key={item.funcionarioId}>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <Linhas linhas={item.linhas} />
                 </TableCell>
                 <TableCell className="whitespace-normal">
@@ -459,7 +510,9 @@ function Gravacoes({ itens }: { itens: readonly ItemDaImportacaoDeHoras[] }) {
                     {item.novo ? <Badge variant="secondary">sem apontamento</Badge> : null}
                   </div>
                   <div className="text-muted-foreground text-xs">
-                    {item.associado ? `${item.nomeNoArquivo} no arquivo · ` : null}
+                    {item.associado
+                      ? `${item.nomeNoArquivo}${item.matriculaNoArquivo ? ` (matricula ${item.matriculaNoArquivo})` : ""} no arquivo · `
+                      : null}
                     {item.detalhe}
                   </div>
                 </TableCell>

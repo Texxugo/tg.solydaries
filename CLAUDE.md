@@ -1721,6 +1721,25 @@ update` — duas pessoas salvando juntas terminam com a ultima gravacao, e nao
   O modal so fecha quando a resposta volta: `<form>` desmontado no meio do
   envio nao chega a Server Action.
 
+Importacao de horas extras (`apontamentos/importacao-horas/`):
+
+- **Dois modelos de relatorio, um leitor so** (`lerRelatorioDeHoras()`): o
+  resumo (Nome, Horas, Verba; uma linha por pessoa e verba) e o "Relatorio de
+  Eventos Individuais", com uma linha por **dia** e as colunas Emp. e
+  Matricula a mais. Verba 150 vai para HE 50% e 200 para HE 100%.
+- **Somar exige a matricula.** As linhas com o mesmo nome, empresa e matricula
+  (`identidade`) sao somadas por verba; sem matricula, o mesmo nome repetido na
+  mesma verba continua recusado, porque pode ser um homonimo. O teto de 744
+  horas vale para a soma, e nao so para cada dia.
+- **Com matricula no arquivo, ela tambem precisa bater com o cadastro** para o
+  casamento automatico: desempata homonimos e barra o nome igual de outra
+  pessoa (`matricula_diferente`, que vira escolha na previa). A matricula
+  sozinha nunca casa ninguem — ela se repete entre empresas.
+- **O rodape de totais do relatorio de eventos e ignorado**: linha sem nome so
+  conta se tiver horas numa verba lida.
+- **A gravacao substitui HE 50% e HE 100%, e nao soma ao gravado**: o arquivo e
+  o total do periodo, e importar o mesmo arquivo duas vezes nao dobra nada.
+
 Exportacao:
 
 - **Dois formatos, dois leitores.** O Excel e para **importar** na folha: uma
@@ -2402,3 +2421,4 @@ Regras:
 | 2026-11-12 | Efetivo por data, e nao por competencia                                     | o D-2 e a semana atravessam a virada do periodo; mesmo arranjo dos afastamentos                                                                  |
 | 2026-11-12 | Conflito de horario pede confirmacao, e nao bloqueia                        | a dobra legitima existe; nada e gravado sem a decisao, e os confirmados ficam no painel do dia                                                   |
 | 2026-11-23 | Limpar os apontamentos da competencia, com confirmacao e contagem conferida | recomecar o fechamento sem SQL; a action recusa se o numero mudou, porque a confirmacao vale para o que a pessoa leu                             |
+| 2026-11-26 | Horas extras do relatorio diario somadas por nome + empresa + matricula     | o relatorio de eventos traz uma linha por dia; sem matricula o nome repetido continua recusado, porque somar homonimos pagaria um pelo outro     |

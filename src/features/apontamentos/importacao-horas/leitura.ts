@@ -1,10 +1,20 @@
 import type { LinhaDaPlanilha, LinhaRecusada } from "@/features/funcionarios/planilha";
 
-import { lerHoras, MAXIMO_DE_MINUTOS } from "../rubricas";
+import { horasParaCampo, lerHoras, MAXIMO_DE_MINUTOS } from "../rubricas";
 
 /**
- * Leitura do relatorio de horas extras por verba: uma linha por pessoa e
- * verba, com as colunas Nome, Horas (`HH:MM`, passando de 24h) e Verba.
+ * Leitura do relatorio de horas extras por verba, com as colunas Nome, Horas
+ * (`HH:MM`, passando de 24h) e Verba. Dois modelos passam por aqui:
+ *
+ * - o **resumo**, com uma linha por pessoa e verba (so Nome, Horas e Verba);
+ * - o **Relatorio de Eventos Individuais**, com uma linha por **dia** e as
+ *   colunas Emp. e Matricula a mais. Ali a mesma pessoa aparece dezenas de
+ *   vezes na mesma verba, e as linhas sao somadas.
+ *
+ * Somar so e seguro quando o arquivo diz que e a mesma pessoa: nome, matricula
+ * e empresa iguais (`identidade`). Sem matricula, o mesmo nome repetido na
+ * mesma verba continua recusado — pode ser um homonimo, e somar pagaria a um o
+ * que o outro fez.
  *
  * Modulo puro: recebe as celulas que `funcionarios/xlsx.ts` ja tirou do
  * arquivo e devolve as linhas que interessam. Nao sabe quem e quem no
@@ -23,13 +33,23 @@ export const RUBRICA_DA_VERBA = {
 
 export type Verba = keyof typeof RUBRICA_DA_VERBA;
 
+/** O total de uma pessoa numa verba — uma linha do arquivo, ou a soma das linhas dela. */
 export type LinhaDeHoras = {
-  /** Numero da linha no Excel, para as mensagens. */
-  linha: number;
+  /** Numeros das linhas no Excel que entraram na soma, para as mensagens. */
+  linhas: number[];
   /** O nome como veio no arquivo. */
   nome: string;
-  /** O nome comparavel (`chaveDoNome()`): e por ele que as linhas da mesma pessoa se juntam. */
+  /** O nome comparavel (`chaveDoNome()`): e por ele que o cadastro e procurado. */
   chave: string;
+  /** Matricula do arquivo; `null` quando a planilha nao tem a coluna ou a celula veio vazia. */
+  matricula: string | null;
+  /** Codigo da empresa (coluna Emp.), quando o arquivo traz. */
+  empresa: string | null;
+  /**
+   * Quem o arquivo diz que e: nome + empresa + matricula, ou so o nome quando
+   * nao ha matricula. As linhas com a mesma identidade e verba sao somadas.
+   */
+  identidade: string;
   verba: Verba;
   minutos: number;
 };
@@ -60,7 +80,16 @@ function rotuloDoCabecalho(texto: string) {
   return chaveDoNome(texto).toLowerCase();
 }
 
-type Colunas = { nome: number; horas: number; verba: number };
+type Colunas = {
+  nome: number;
+  horas: number;
+  verba: number;
+  /** Opcionais: o resumo nao as traz, o relatorio de eventos individuais sim. */
+  matricula?: number;
+  empresa?: number;
+};
+
+const ROTULOS_DA_EMPRESA = new Set(["emp", "emp.", "empresa"]);
 
 /** A linha cujas celulas dizem Nome, Horas e Verba — em qualquer ordem e coluna. */
 function acharCabecalho(linhas: readonly LinhaDaPlanilha[]) {
@@ -73,6 +102,8 @@ function acharCabecalho(linhas: readonly LinhaDaPlanilha[]) {
       if (rotulo === "nome") colunas.nome = celula.de;
       else if (rotulo === "horas") colunas.horas = celula.de;
       else if (rotulo === "verba") colunas.verba = celula.de;
+      else if (rotulo === "matricula") colunas.matricula = celula.de;
+      else if (ROTULOS_DA_EMPRESA.has(rotulo)) colunas.empresa = celula.de;
     }
 
     if (colunas.nome !== undefined && colunas.horas !== undefined && colunas.verba !== undefined) {
@@ -83,7 +114,11 @@ function acharCabecalho(linhas: readonly LinhaDaPlanilha[]) {
   return null;
 }
 
-function valorNaColuna(linha: LinhaDaPlanilha, coluna: number) {
+function valorNaColuna(linha: LinhaDaPlanilha, coluna: number | undefined) {
+  if (coluna === undefined) {
+    return undefined;
+  }
+
   return linha.celulas.find((celula) => celula.de <= coluna && coluna <= celula.ate)?.valor.trim();
 }
 
@@ -101,6 +136,17 @@ function minutosDaCelula(valor: string): number | null {
   const semSegundos = /^(\d+:[0-5]\d):[0-5]\d$/.exec(valor)?.[1] ?? valor;
 
   return lerHoras(semSegundos);
+}
+
+/** `"0467"` e `"467"` sao a mesma matricula, como na carga da folha. */
+function codigoDaCelula(valor: string | undefined) {
+  const texto = (valor ?? "").trim();
+
+  if (!texto) {
+    return null;
+  }
+
+  return /^\d+$/.test(texto) ? String(Number(texto)) : texto;
 }
 
 /** `"150"`, `"150.0"` e `" 150 "` sao a mesma verba. */
@@ -132,13 +178,17 @@ export function lerRelatorioDeHoras(linhas: readonly LinhaDaPlanilha[]): Leitura
     const verbaBruta = valorNaColuna(linha, colunas.verba) ?? "";
     const identificacao = nome || "(sem nome)";
 
-    if (!nome && !horas && !verbaBruta) {
+    const verba = verbaDaCelula(verbaBruta);
+    const verbaLida = verba in RUBRICA_DA_VERBA;
+
+    // Sem nome, so e linha de pessoa se tiver horas numa verba lida. O resto e
+    // linha em branco ou o rodape de totais do relatorio de eventos ("Total
+    // Geral em Minutos: 446217"), cujo valor cai sob as colunas Horas e Verba.
+    if (!nome && (!horas || !verbaLida)) {
       continue;
     }
 
-    const verba = verbaDaCelula(verbaBruta);
-
-    if (!(verba in RUBRICA_DA_VERBA)) {
+    if (!verbaLida) {
       outras.set(verba || "(em branco)", (outras.get(verba || "(em branco)") ?? 0) + 1);
       continue;
     }
@@ -173,43 +223,77 @@ export function lerRelatorioDeHoras(linhas: readonly LinhaDaPlanilha[]): Leitura
       continue;
     }
 
+    const chave = chaveDoNome(nome);
+    const matricula = codigoDaCelula(valorNaColuna(linha, colunas.matricula));
+    const empresa = codigoDaCelula(valorNaColuna(linha, colunas.empresa));
+
     lidas.push({
-      linha: linha.numero,
+      linhas: [linha.numero],
       nome,
-      chave: chaveDoNome(nome),
+      chave,
+      matricula,
+      empresa,
+      identidade: matricula === null ? chave : `${chave}|${empresa ?? ""}|${matricula}`,
       verba: verba as Verba,
       minutos,
     });
   }
 
-  // O mesmo nome duas vezes na mesma verba: podem ser duas pessoas homonimas
-  // no relatorio, ou a mesma lancada duas vezes. Somar acertaria um caso e
-  // erraria o outro, entao as duas linhas ficam de fora.
-  const contagem = new Map<string, number>();
-
-  for (const linha of lidas) {
-    const par = `${linha.chave}|${linha.verba}`;
-    contagem.set(par, (contagem.get(par) ?? 0) + 1);
-  }
-
-  const unicas = lidas.filter((linha) => {
-    if (contagem.get(`${linha.chave}|${linha.verba}`) === 1) {
-      return true;
-    }
-
-    recusadas.push({
-      linha: linha.linha,
-      identificacao: linha.nome,
-      motivo: `O nome aparece mais de uma vez com a verba ${linha.verba}: nao da para saber se e a mesma pessoa.`,
-    });
-    return false;
-  });
-
   return {
     ok: true,
-    linhas: unicas,
+    linhas: somarPorIdentidade(lidas, recusadas),
     recusadas: recusadas.sort((a, b) => a.linha - b.linha),
     outrasVerbas: [...outras].map(([verba, total]) => ({ verba, linhas: total })),
     zeradas,
   };
+}
+
+/**
+ * Junta as linhas da mesma pessoa na mesma verba, somando as horas.
+ *
+ * Com matricula, a identidade e nome + empresa + matricula, e as linhas
+ * repetidas sao os dias do relatorio de eventos individuais: somam. Sem
+ * matricula, a identidade e so o nome, e a repeticao pode ser um homonimo ou a
+ * mesma pessoa lancada duas vezes — somar acertaria um caso e erraria o outro,
+ * entao as linhas ficam de fora.
+ *
+ * A soma tambem passa pelo teto do apontamento: cada dia cabe, e o mes inteiro
+ * pode nao caber.
+ */
+function somarPorIdentidade(lidas: readonly LinhaDeHoras[], recusadas: LinhaRecusada[]) {
+  const grupos = Map.groupBy(lidas, (linha) => `${linha.identidade}#${linha.verba}`);
+  const somadas: LinhaDeHoras[] = [];
+
+  for (const grupo of grupos.values()) {
+    const [primeira] = grupo;
+    const linhas = grupo.flatMap((linha) => linha.linhas);
+
+    if (grupo.length > 1 && primeira.matricula === null) {
+      for (const linha of linhas) {
+        recusadas.push({
+          linha,
+          identificacao: primeira.nome,
+          motivo: `O nome aparece mais de uma vez com a verba ${primeira.verba} e sem matricula: nao da para saber se e a mesma pessoa.`,
+        });
+      }
+      continue;
+    }
+
+    const minutos = grupo.reduce((total, linha) => total + linha.minutos, 0);
+
+    if (minutos > MAXIMO_DE_MINUTOS) {
+      for (const linha of linhas) {
+        recusadas.push({
+          linha,
+          identificacao: primeira.nome,
+          motivo: `A verba ${primeira.verba} soma ${horasParaCampo(minutos)} para esta pessoa, e passa de 744 horas, o teto do apontamento.`,
+        });
+      }
+      continue;
+    }
+
+    somadas.push({ ...primeira, linhas, minutos });
+  }
+
+  return somadas;
 }
